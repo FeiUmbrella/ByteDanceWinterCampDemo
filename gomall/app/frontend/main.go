@@ -4,6 +4,11 @@ package main
 
 import (
 	"context"
+	"github.com/hertz-contrib/sessions"
+	"github.com/hertz-contrib/sessions/redis"
+	"github.com/joho/godotenv"
+	"gomall/app/frontend/middleware"
+	"os"
 	"time"
 
 	"github.com/cloudwego/hertz/pkg/app"
@@ -24,6 +29,7 @@ import (
 )
 
 func main() {
+	_ = godotenv.Load()
 	// init dal
 	// dal.Init()
 	address := conf.GetConf().Hertz.Address
@@ -39,10 +45,36 @@ func main() {
 	router.GeneratedRegister(h)
 	h.LoadHTMLGlob("template/*")
 	h.Static("/static", "./")
+
+	// About 页面
+	h.GET("/about", func(c context.Context, ctx *app.RequestContext) {
+		ctx.HTML(consts.StatusOK, "about", utils.H{"Title": "About"})
+	})
+
+	// 登录页面
+	h.GET("/sign-in", func(c context.Context, ctx *app.RequestContext) {
+		data := utils.H{
+			"Title": "Sign In",
+			"Next":  ctx.Query("next"), // 记录是从哪个页面跳转到的登陆页面
+		}
+
+		// 渲染登录页面
+		ctx.HTML(consts.StatusOK, "sign-in", data)
+	})
+
+	// 注册页面
+	h.GET("/sign-up", func(c context.Context, ctx *app.RequestContext) {
+		ctx.HTML(consts.StatusOK, "sign-up", utils.H{"Title": "Sign Up"})
+	})
+
 	h.Spin()
 }
 
 func registerMiddleware(h *server.Hertz) {
+	// Redis of Session
+	store, _ := redis.NewStore(10, "tcp", conf.GetConf().Redis.Address, "", []byte(os.Getenv("SESSION_SECRET")))
+	h.Use(sessions.New("cloudwego-shop", store))
+
 	// log
 	logger := hertzlogrus.NewLogger()
 	hlog.SetLogger(logger)
@@ -81,4 +113,7 @@ func registerMiddleware(h *server.Hertz) {
 
 	// cores
 	h.Use(cors.Default())
+
+	// 全局路由要使用中间件
+	middleware.Register(h)
 }
